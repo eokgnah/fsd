@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EU-FSD-Abstimmung mit Vorauswahl</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f4f6fb;
+    color: #172033;
+  }
+  .wrap { max-width: 1150px; margin: 0 auto; }
+  .panel {
+    background: white;
+    border: 1px solid #d9e1ef;
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+  }
+  h1 { margin: 0 0 8px; }
+  .hint { margin: 0; color: #5f6b7a; line-height: 1.45; }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px;
+  }
+  .stat {
+    background: #f0f4fb;
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .label { color: #5f6b7a; font-size: 14px; }
+  .value { font-size: 34px; font-weight: 800; margin: 4px 0; }
+  .sub { color: #5f6b7a; font-size: 14px; }
+  .bar {
+    height: 12px;
+    background: #dce4f2;
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 10px;
+  }
+  .fill {
+    height: 100%;
+    width: 0%;
+    background: #315cff;
+    transition: width 0.15s ease;
+  }
+  #result { font-size: 28px; font-weight: 900; }
+  .ok { color: #087a35; }
+  .no { color: #b3261e; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  button {
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    background: #172033;
+    color: white;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  button.secondary { background: #e8edf7; color: #172033; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
+  }
+  .country {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border: 1px solid #d9e1ef;
+    border-radius: 14px;
+    background: white;
+    padding: 12px;
+    cursor: pointer;
+    min-height: 74px;
+  }
+  .country.selected { border-color: #315cff; background: #f4f7ff; }
+  .country strong { display: block; }
+  .country small { display: block; color: #667085; margin-top: 3px; }
+  .toggle {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 58px;
+    height: 32px;
+    border-radius: 999px;
+    background: #b9c3d6;
+    position: relative;
+    outline: none;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  .toggle::before {
+    content: "";
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    left: 4px;
+    top: 4px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    transition: transform 0.15s ease;
+  }
+  .toggle:checked { background: #315cff; }
+  .toggle:checked::before { transform: translateX(26px); }
+  code { background: #eef2f7; padding: 2px 5px; border-radius: 5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="panel">
+    <h1>EU-Abstimmung: FSD-Zulassung</h1>
+    <p class="hint">
+    Länder mit aktueller FSD Freigabe sind beim Laden automatisch vorausgewählt. (10.06.2026)<br>
+        10.06.2026 - Belgien<br>
+        09.06.2026 - Dänemark<br>
+        29.05.2026 - Estland<br>
+        20.05.2026 - Litauen<br>
+        10.04.2026 - Niederlande<br>
+    </p>
+  </section>
+
+  <section class="stats panel">
+    <div class="stat">
+      <div class="label">Mitgliedstaaten dafür (min. 55%)</div>
+      <div class="value" id="statePct">0,0%</div>
+      <div class="sub" id="stateText">0 von 27 Staaten</div>
+      <div class="bar"><div class="fill" id="stateBar"></div></div>
+    </div>
+    <div class="stat">
+      <div class="label">Bürgeranteil dafür (min. 65%)</div>
+      <div class="value" id="popPct">0,0%</div>
+      <div class="sub" id="popText">0,0 Mio. von 450,4 Mio.</div>
+      <div class="bar"><div class="fill" id="popBar"></div></div>
+    </div>
+    <div class="stat">
+      <div class="label">Ergebnis</div>
+      <div id="result" class="no">Nicht erreicht</div>
+      <div class="sub" id="needText">Noch nicht ausreichend.</div>
+    </div>
+  </section>
+
+  <section class="panel actions">
+    <button type="button" onclick="setAll(true)">Alle einschalten</button>
+    <button type="button" class="secondary" onclick="setAll(false)">Alle ausschalten</button>
+    <button type="button" class="secondary" onclick="restorePreset()">FSD-Vorauswahl laden</button>
+  </section>
+
+  <section class="panel">
+    <h2>Mitgliedstaaten auswählen</h2>
+    <div class="grid" id="countries"></div>
+  </section>
+</div>
+
+<script>
+const countries = [
+  // fsd: true bedeutet: beim Laden vorausgewählt.
+  // Hier kannst du selbst ändern, welche Länder FSD schon freigegeben haben.
+  { name: "Deutschland",   population: 83.6, fsd: false },
+  { name: "Frankreich",    population: 68.6, fsd: false },
+  { name: "Italien",       population: 59.0, fsd: false },
+  { name: "Spanien",       population: 48.8, fsd: false },
+  { name: "Polen",         population: 36.6, fsd: false },
+  { name: "Rumänien",      population: 19.1, fsd: false },
+  { name: "Niederlande",   population: 18.0, fsd: true },
+  { name: "Belgien",       population: 11.8, fsd: true },
+  { name: "Tschechien",    population: 10.9, fsd: false },
+  { name: "Schweden",      population: 10.6, fsd: false },
+  { name: "Portugal",      population: 10.4, fsd: false },
+  { name: "Griechenland",  population: 10.3, fsd: false },
+  { name: "Ungarn",        population: 9.6,  fsd: false },
+  { name: "Österreich",    population: 9.2,  fsd: false },
+  { name: "Bulgarien",     population: 6.4,  fsd: false },
+  { name: "Dänemark",      population: 6.0,  fsd: true },
+  { name: "Finnland",      population: 5.6,  fsd: false },
+  { name: "Slowakei",      population: 5.4,  fsd: false },
+  { name: "Irland",        population: 5.3,  fsd: false },
+  { name: "Kroatien",      population: 3.9,  fsd: false },
+  { name: "Litauen",       population: 2.9,  fsd: true },
+  { name: "Slowenien",     population: 2.1,  fsd: false },
+  { name: "Lettland",      population: 1.9,  fsd: false },
+  { name: "Estland",       population: 1.4,  fsd: true },
+  { name: "Zypern",        population: 0.9,  fsd: false },
+  { name: "Luxemburg",     population: 0.7,  fsd: false },
+  { name: "Malta",         population: 0.6,  fsd: false }
+];
+
+const TOTAL_STATES = countries.length;
+const TOTAL_POP = countries.reduce((sum, country) => sum + country.population, 0);
+
+function formatNumber(value) {
+  return value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+function buildCountryList() {
+  const container = document.getElementById("countries");
+  container.innerHTML = "";
+
+  countries.forEach((country, index) => {
+    const label = document.createElement("label");
+    label.className = "country";
+    label.id = "country-card-" + index;
+
+    const text = document.createElement("div");
+    text.innerHTML = `<strong>${country.name}</strong><small>${formatNumber(country.population)} Mio. Bürger</small>`;
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "toggle";
+    checkbox.dataset.index = index;
+    checkbox.checked = country.fsd === true;
+    checkbox.addEventListener("change", calculate);
+
+    label.appendChild(text);
+    label.appendChild(checkbox);
+    container.appendChild(label);
+  });
+}
+
+function calculate() {
+  const boxes = Array.from(document.querySelectorAll(".toggle"));
+  let selectedStates = 0;
+  let selectedPop = 0;
+
+  boxes.forEach(box => {
+    const index = Number(box.dataset.index);
+    const card = document.getElementById("country-card-" + index);
+    if (box.checked) {
+      selectedStates += 1;
+      selectedPop += countries[index].population;
+      card.classList.add("selected");
+    } else {
+      card.classList.remove("selected");
+    }
+  });
+
+  const statePct = selectedStates / TOTAL_STATES * 100;
+  const popPct = selectedPop / TOTAL_POP * 100;
+
+  document.getElementById("statePct").textContent = formatNumber(statePct) + "%";
+  document.getElementById("stateText").textContent = selectedStates + " von " + TOTAL_STATES + " Staaten";
+  document.getElementById("popPct").textContent = formatNumber(popPct) + "%";
+  document.getElementById("popText").textContent = formatNumber(selectedPop) + " Mio. von " + formatNumber(TOTAL_POP) + " Mio. Bürgern";
+
+  document.getElementById("stateBar").style.width = Math.min(100, statePct) + "%";
+  document.getElementById("popBar").style.width = Math.min(100, popPct) + "%";
+
+  const stateOk = statePct > 55;
+  const popOk = popPct >= 65;
+  const passed = stateOk && popOk;
+
+  const result = document.getElementById("result");
+  result.textContent = passed ? "Zulassung erreicht" : "Nicht erreicht";
+  result.className = passed ? "ok" : "no";
+
+  const missingStates = Math.max(0, 15 - selectedStates);
+  const missingPop = Math.max(0, TOTAL_POP * 0.65 - selectedPop);
+  document.getElementById("needText").textContent =
+    (stateOk ? "Staaten-Schwelle erreicht. " : "Es fehlen " + missingStates + " Staat(en). ") +
+    (popOk ? "Bürger-Schwelle erreicht." : "Es fehlen ca. " + formatNumber(missingPop) + " Mio. Bürger.");
+}
+
+function setAll(value) {
+  document.querySelectorAll(".toggle").forEach(box => box.checked = value);
+  calculate();
+}
+
+function restorePreset() {
+  document.querySelectorAll(".toggle").forEach(box => {
+    const index = Number(box.dataset.index);
+    box.checked = countries[index].fsd === true;
+  });
+  calculate();
+}
+
+buildCountryList();
+calculate();
+</script>
+</body>
+</html>
